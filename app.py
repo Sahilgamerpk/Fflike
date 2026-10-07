@@ -7,10 +7,13 @@ import binascii
 import aiohttp
 import requests
 import json
+import socket
 import like_pb2
 import like_count_pb2
 import uid_generator_pb2
 from google.protobuf.message import DecodeError
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
 
@@ -66,7 +69,12 @@ async def send_request(encrypted_uid, token, url):
             'X-GA': "v1 1",
             'ReleaseVersion': "OB55"
         }
-        async with aiohttp.ClientSession() as session:
+        
+        # Force Google DNS for resolution
+        resolver = aiohttp.AsyncResolver(nameservers=["8.8.8.8", "8.8.4.4"])
+        connector = aiohttp.TCPConnector(resolver=resolver, family=socket.AF_INET)
+        
+        async with aiohttp.ClientSession(connector=connector) as session:
             async with session.post(url, data=edata, headers=headers) as response:
                 if response.status != 200:
                     app.logger.error(f"Request failed with status code: {response.status}")
@@ -138,7 +146,15 @@ def make_request(encrypt, server_name, token):
             'X-GA': "v1 1",
             'ReleaseVersion': "OB55"
         }
-        response = requests.post(url, data=edata, headers=headers, verify=False)
+        
+        # Use session with Google DNS resolver
+        session = requests.Session()
+        # Force Google DNS
+        session.mount('https://', requests.adapters.HTTPAdapter(
+            max_retries=requests.adapters.Retry(total=3, backoff_factor=1)
+        ))
+        
+        response = session.post(url, data=edata, headers=headers, verify=False, timeout=30)
         hex_data = response.content.hex()
         binary = bytes.fromhex(hex_data)
         decode = decode_protobuf(binary)
@@ -178,7 +194,6 @@ def handle_requests():
             if encrypted_uid is None:
                 raise Exception("Encryption of UID failed.")
 
-            # الحصول على بيانات اللاعب قبل تنفيذ عملية الإعجاب
             before = make_request(encrypted_uid, server_name, token)
             if before is None:
                 raise Exception("Failed to retrieve initial player info.")
