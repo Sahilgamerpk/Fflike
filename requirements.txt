@@ -1,9 +1,10 @@
-Flask[async]
+Flask
 requests
 aiohttp
 googleapis-common-protos
 pycryptodome
 protobuf
 Werkzeug
+gunicorn
 
 
