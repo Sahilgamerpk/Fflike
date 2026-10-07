@@ -1,6 +1,7 @@
 Flask
 requests
 aiohttp
+aiodns
 googleapis-common-protos
 pycryptodome
 protobuf
